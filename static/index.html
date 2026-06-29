@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Analizador de Excel</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #222636;
+      --border: #2e3348;
+      --accent: #4ade80;
+      --accent-dim: #22c55e33;
+      --text: #e8eaf0;
+      --muted: #7b82a0;
+      --error: #f87171;
+      --error-dim: #ef444422;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 560px;
+    }
+
+    header {
+      margin-bottom: 2.5rem;
+      text-align: center;
+    }
+
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 1rem;
+    }
+
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .logo-icon svg { width: 20px; height: 20px; }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      color: var(--text);
+    }
+
+    p.subtitle {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-top: 0.4rem;
+      line-height: 1.5;
+    }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 14px;
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      background: var(--surface);
+      position: relative;
+    }
+
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+
+    .drop-zone input[type="file"] {
+      position: absolute; inset: 0;
+      opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+
+    .drop-icon {
+      width: 48px; height: 48px;
+      margin: 0 auto 1rem;
+      color: var(--muted);
+    }
+
+    .drop-zone:hover .drop-icon,
+    .drop-zone.dragover .drop-icon {
+      color: var(--accent);
+    }
+
+    .drop-label {
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .drop-hint {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 0.3rem;
+    }
+
+    .drop-zone.has-file .drop-label {
+      color: var(--accent);
+    }
+
+    /* Button */
+    button {
+      width: 100%;
+      margin-top: 1rem;
+      padding: 0.85rem;
+      background: var(--accent);
+      color: #0f1117;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 0.95rem;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+    }
+
+    button:hover { opacity: 0.88; }
+    button:active { transform: scale(0.98); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Spinner */
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid #0f111766;
+      border-top-color: #0f1117;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    .loading .spinner { display: block; }
+    .loading .btn-label { display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Result */
+    .result {
+      margin-top: 1.5rem;
+      border-radius: 12px;
+      overflow: hidden;
+      display: none;
+    }
+
+    .result.visible { display: block; }
+
+    .result-header {
+      background: var(--surface2);
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 0.75rem;
+    }
+
+    .result-header .check {
+      width: 28px; height: 28px;
+      background: var(--accent-dim);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .result-header .check svg { width: 15px; height: 15px; color: var(--accent); }
+
+    .result-filename {
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-family: 'JetBrains Mono', monospace;
+      word-break: break-all;
+    }
+
+    .result-body {
+      background: var(--surface);
+      padding: 1.25rem;
+    }
+
+    .big-number {
+      font-size: 3rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.04em;
+      color: var(--accent);
+      line-height: 1;
+    }
+
+    .big-label {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-top: 0.25rem;
+    }
+
+    .sheets-list {
+      margin-top: 1rem;
+      border-top: 1px solid var(--border);
+      padding-top: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .sheet-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+    }
+
+    .sheet-name {
+      color: var(--muted);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      max-width: 60%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .sheet-count {
+      font-weight: 600;
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Error */
+    .error-box {
+      margin-top: 1rem;
+      background: var(--error-dim);
+      border: 1px solid var(--error);
+      border-radius: 10px;
+      padding: 0.9rem 1.1rem;
+      font-size: 0.88rem;
+      color: var(--error);
+      display: none;
+    }
+    .error-box.visible { display: block; }
+
+    footer {
+      margin-top: 2.5rem;
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#0f1117" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <path d="M3 9h18M9 21V9"/>
+          </svg>
+        </div>
+        <span style="font-weight:700;font-size:1.1rem;">ExcelStats</span>
+      </div>
+      <h1>Analizador de filas</h1>
+      <p class="subtitle">Subí un archivo Excel o CSV y obtené la cantidad exacta<br>de filas por hoja en segundos.</p>
+    </header>
+
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
+      <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <div class="drop-label" id="dropLabel">Arrastrá tu archivo aquí</div>
+      <div class="drop-hint">o hacé clic para seleccionarlo · .xlsx · .xls · .csv</div>
+    </div>
+
+    <button id="analyzeBtn" disabled>
+      <div class="spinner"></div>
+      <span class="btn-label">Analizar archivo</span>
+    </button>
+
+    <div class="error-box" id="errorBox"></div>
+
+    <div class="result" id="result">
+      <div class="result-header">
+        <div class="check">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <div>
+          <div style="font-weight:500;font-size:0.9rem;">Análisis completado</div>
+          <div class="result-filename" id="resultFilename"></div>
+        </div>
+      </div>
+      <div class="result-body">
+        <div class="big-number" id="totalRows">0</div>
+        <div class="big-label" id="totalLabel">filas en total</div>
+        <div class="sheets-list" id="sheetsList"></div>
+      </div>
+    </div>
+
+    <footer>Soporta archivos de hasta 50 MB · Los datos no se almacenan</footer>
+  </div>
+
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const dropLabel = document.getElementById('dropLabel');
+    const result = document.getElementById('result');
+    const errorBox = document.getElementById('errorBox');
+    const totalRows = document.getElementById('totalRows');
+    const totalLabel = document.getElementById('totalLabel');
+    const sheetsList = document.getElementById('sheetsList');
+    const resultFilename = document.getElementById('resultFilename');
+
+    let selectedFile = null;
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) setFile(fileInput.files[0]);
+    });
+
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+    });
+
+    function setFile(file) {
+      selectedFile = file;
+      dropLabel.textContent = file.name;
+      dropZone.classList.add('has-file');
+      analyzeBtn.disabled = false;
+      result.classList.remove('visible');
+      errorBox.classList.remove('visible');
+    }
+
+    analyzeBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+
+      analyzeBtn.disabled = true;
+      analyzeBtn.classList.add('loading');
+      result.classList.remove('visible');
+      errorBox.classList.remove('visible');
+
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      try {
+        const res = await fetch('/analyze', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (data.error) {
+          errorBox.textContent = data.error;
+          errorBox.classList.add('visible');
+        } else {
+          resultFilename.textContent = data.filename;
+          totalRows.textContent = data.total_rows.toLocaleString('es-AR');
+          totalLabel.textContent = data.total_rows === 1 ? 'fila en total' : 'filas en total';
+
+          sheetsList.innerHTML = '';
+          if (data.sheet_count > 1) {
+            Object.entries(data.sheets).forEach(([name, count]) => {
+              const row = document.createElement('div');
+              row.className = 'sheet-row';
+              row.innerHTML = `
+                <span class="sheet-name" title="${name}">${name}</span>
+                <span class="sheet-count">${count.toLocaleString('es-AR')} filas</span>
+              `;
+              sheetsList.appendChild(row);
+            });
+          }
+
+          result.classList.add('visible');
+        }
+      } catch {
+        errorBox.textContent = 'No se pudo conectar con el servidor. Intentá de nuevo.';
+        errorBox.classList.add('visible');
+      }
+
+      analyzeBtn.classList.remove('loading');
+      analyzeBtn.disabled = false;
+    });
+  </script>
+</body>
+</html>
